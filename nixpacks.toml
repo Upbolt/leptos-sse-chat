@@ -1,6 +1,6 @@
 [phases.setup]
 nixPkgs = ['gcc13', 'rustup']
-cmds = ['rustup target add wasm32-unknown-unknown']
+cmds = ['rustup default stable', 'rustup target add wasm32-unknown-unknown']
 
 [phases.install]
 cmds = ['cargo install cargo-leptos --locked']
