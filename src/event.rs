@@ -21,6 +21,7 @@ pub enum ChatEvent {
 #[derive(Serialize, Deserialize, Message, Clone, Debug, PartialEq)]
 #[rtype(result = "Result<(), Infallible>")]
 pub struct ChatMessage {
+    id: String,
     author: String,
     content: String,
 }
@@ -97,8 +98,11 @@ impl Handler<AppEvent> for Users {
                 }
             }
             AppEvent::Message { user_name, message } => {
+                let id = nanoid::nanoid!();
+
                 for (_, actor) in self.users.iter() {
                     actor.do_send(ChatMessage {
+                        id: id.clone(),
                         author: user_name.clone(),
                         content: message.clone(),
                     });

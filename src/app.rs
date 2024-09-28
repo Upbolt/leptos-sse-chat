@@ -7,7 +7,8 @@ use leptos_router::{
 };
 use leptos_use::{use_event_source_with_options, UseEventSourceOptions, UseEventSourceReturn};
 use serde::{Deserialize, Serialize};
-use web_sys::HtmlInputElement;
+use web_sys::js_sys::RegExp;
+use web_sys::{HtmlInputElement, Url};
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
@@ -67,7 +68,7 @@ fn HomePage() -> impl IntoView {
     let UseEventSourceReturn { data, open, .. } = use_event_source_with_options::<
         ChatEvent,
         JsonSerdeCodec,
-    >("http://localhost:3000/chat", options);
+    >("/chat", options);
 
     let messages = RwSignal::new(vec![]);
 
@@ -84,7 +85,6 @@ fn HomePage() -> impl IntoView {
 
         match data {
             ChatEvent::Message(message) => {
-                // leptos::logging::log!("{message:?}");
                 messages.update(|messages| {
                     messages.push(message);
                 });
@@ -117,9 +117,9 @@ fn HomePage() -> impl IntoView {
             <Chat />
             <ul>
                 <For
-                    each=move || messages.get().into_iter().enumerate()
-                    key=|(index, _)| *index
-                    children=move |(_, message)| {
+                    each=move || messages.get()
+                    key=|message| message.id.clone()
+                    children=move |message| {
                         view! {
                             <Message
                                 author=message.author.clone()
@@ -184,15 +184,56 @@ enum ChatEvent {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 struct ChatMessage {
+    id: String,
     author: String,
     content: String,
 }
 
 use codee::string::JsonSerdeCodec;
 
+use leptos::either::Either;
+
 #[component]
 fn Message(author: String, content: String) -> impl IntoView {
-    view! { <li>{author}": "{content}</li> }
+    let spotify_track_id = Url::new(&content).ok()
+        .and_then(|url| {
+            let pathname = url.pathname();
+
+            let valid_track_id = RegExp::new("[a-zA-Z0-9]", "").test(&pathname["/track/".len()..]);
+
+            (url.origin() == "https://open.spotify.com"
+                && pathname.starts_with("/track/")
+                && valid_track_id).then_some(pathname["/track/".len()..].to_string())
+        });
+
+    if let Some(spotify_track_id) = spotify_track_id {
+        Either::Left(view! { <SpotifyEmbed track_id=spotify_track_id /> })
+    } else {
+        Either::Right(view! { <li>{author}": "{content}</li> })
+    }
+}
+
+#[component]
+fn SpotifyEmbed(track_id: String) -> impl IntoView {
+    view! {
+        <div>
+            <SpotifyEmbedInner track_id=track_id attr:loading="lazy" />
+        </div>
+    }
+}
+
+#[component]
+fn SpotifyEmbedInner(track_id: String) -> impl IntoView {
+    view! {
+        <iframe
+            style="border-radius:12px;border:none;max-width: 400px"
+            src={format!("https://open.spotify.com/embed/track/{track_id}")}
+            width="100%"
+            height="96"
+            allowfullscreen=""
+            allow="autoplay; clipboard-write; fullscreen; picture-in-picture"
+        ></iframe>
+    }
 }
 
 #[server]
