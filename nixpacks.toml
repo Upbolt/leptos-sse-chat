@@ -1,4 +1,5 @@
 [phases.setup]
+nixPkgs = ['rustup']
 cmds = ['rustup target add wasm32-unknown-unknown']
 
 [phases.install]
