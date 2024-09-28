@@ -1,14 +1,12 @@
-use leptos::wasm_bindgen::JsCast;
-use leptos::{ev::Event, prelude::*};
+use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, MetaTags, Title};
 use leptos_router::{
     components::{Route, Router, Routes},
     StaticSegment,
 };
 use leptos_use::{use_event_source_with_options, UseEventSourceOptions, UseEventSourceReturn};
-use serde::{Deserialize, Serialize};
 use web_sys::js_sys::RegExp;
-use web_sys::{HtmlInputElement, Url};
+use web_sys::Url;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
@@ -48,32 +46,26 @@ pub fn App() -> impl IntoView {
 
 #[component]
 fn HomePage() -> impl IntoView {
-    let name = RwSignal::new(String::new());
-    let joining = RwSignal::new(false);
-
-    let can_join = AsyncDerived::new(move || async move {
-        if !joining.get() {
-            return false;
-        };
-
-        request_join(name.get()).await.is_ok()
+    let request_join = ServerAction::<RequestJoin>::new();
+    let can_join = Signal::derive(move || {
+        request_join
+            .value()
+            .get()
+            .and_then(|join| join.ok())
+            .is_some()
     });
-
-    let can_join = Memo::new(move |_| can_join.get());
 
     let options = UseEventSourceOptions::default()
         .immediate(false)
         .with_credentials(true);
 
-    let UseEventSourceReturn { data, open, .. } = use_event_source_with_options::<
-        ChatEvent,
-        JsonSerdeCodec,
-    >("/chat", options);
+    let UseEventSourceReturn { data, open, .. } =
+        use_event_source_with_options::<ChatEvent, JsonSerdeCodec>("/chat", options);
 
     let messages = RwSignal::new(vec![]);
 
     Effect::new(move |_| {
-        if can_join.get().unwrap_or_default() {
+        if can_join.get() {
             open();
         }
     });
@@ -95,22 +87,15 @@ fn HomePage() -> impl IntoView {
 
     view! {
         <Show
-            when=move || can_join.get().unwrap_or_default()
+            when=move || can_join.get()
             fallback=move || {
                 view! {
                     <h1>"register"</h1>
 
-                    <input on:input=move |ev: Event| {
-                        let Some(target) = ev.target() else {
-                            return;
-                        };
-                        let Some(input) = target.dyn_ref::<HtmlInputElement>() else {
-                            return;
-                        };
-                        name.set(input.value());
-                    } />
-
-                    <button on:click=move |_| joining.set(true)>"join"</button>
+                    <ActionForm action=request_join>
+                        <input type="text" name="name" />
+                        <input type="submit" value="join" />
+                    </ActionForm>
                 }
             }
         >
@@ -166,8 +151,6 @@ async fn send_message(message: String) -> Result<(), ServerFnError> {
         return Err(ServerFnError::new("unauthorized"));
     };
 
-    println!("send message: {message}");
-
     state.users.do_send(AppEvent::Message {
         user_name: name.to_string(),
         message,
@@ -176,35 +159,24 @@ async fn send_message(message: String) -> Result<(), ServerFnError> {
     Ok(())
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq)]
-enum ChatEvent {
-    Message(ChatMessage),
-    Heartbeat,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-struct ChatMessage {
-    id: String,
-    author: String,
-    content: String,
-}
-
 use codee::string::JsonSerdeCodec;
 
 use leptos::either::Either;
 
+use crate::app_event::ChatEvent;
+
 #[component]
 fn Message(author: String, content: String) -> impl IntoView {
-    let spotify_track_id = Url::new(&content).ok()
-        .and_then(|url| {
-            let pathname = url.pathname();
+    let spotify_track_id = Url::new(&content).ok().and_then(|url| {
+        let pathname = url.pathname();
 
-            let valid_track_id = RegExp::new("[a-zA-Z0-9]", "").test(&pathname["/track/".len()..]);
+        let valid_track_id = RegExp::new("[a-zA-Z0-9]", "").test(&pathname["/track/".len()..]);
 
-            (url.origin() == "https://open.spotify.com"
-                && pathname.starts_with("/track/")
-                && valid_track_id).then_some(pathname["/track/".len()..].to_string())
-        });
+        (url.origin() == "https://open.spotify.com"
+            && pathname.starts_with("/track/")
+            && valid_track_id)
+            .then_some(pathname["/track/".len()..].to_string())
+    });
 
     if let Some(spotify_track_id) = spotify_track_id {
         Either::Left(view! { <SpotifyEmbed track_id=spotify_track_id /> })
@@ -227,7 +199,7 @@ fn SpotifyEmbedInner(track_id: String) -> impl IntoView {
     view! {
         <iframe
             style="border-radius:12px;border:none;max-width: 400px"
-            src={format!("https://open.spotify.com/embed/track/{track_id}")}
+            src=format!("https://open.spotify.com/embed/track/{track_id}")
             width="100%"
             height="96"
             allowfullscreen=""

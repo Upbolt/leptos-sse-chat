@@ -1,5 +1,7 @@
 pub mod app;
 
+pub mod app_event;
+
 #[cfg(feature = "ssr")]
 pub mod event;
 #[cfg(feature = "ssr")]

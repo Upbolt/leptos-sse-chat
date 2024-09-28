@@ -1,8 +1,9 @@
-use std::{collections::HashMap, convert::Infallible};
+use std::convert::Infallible;
 
 use actix::prelude::*;
-use serde::{Deserialize, Serialize};
 use std::sync::mpsc::{Receiver, Sender};
+
+use crate::app_event::{ChatEvent, ChatMessage};
 
 #[derive(Message)]
 #[rtype(result = "Result<AppEventResponse, Infallible>")]
@@ -12,18 +13,8 @@ pub enum AppEvent {
     UserLeft { user_name: String },
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq)]
-pub enum ChatEvent {
-    Message(ChatMessage),
-    Heartbeat,
-}
-
-#[derive(Serialize, Deserialize, Message, Clone, Debug, PartialEq)]
-#[rtype(result = "Result<(), Infallible>")]
-pub struct ChatMessage {
-    id: String,
-    author: String,
-    content: String,
+impl Message for ChatMessage {
+    type Result = Result<(), Infallible>;
 }
 
 pub enum AppEventResponse {

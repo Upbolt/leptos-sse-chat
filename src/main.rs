@@ -1,4 +1,7 @@
 #[cfg(feature = "ssr")]
+pub mod app_event;
+
+#[cfg(feature = "ssr")]
 use axum::extract::State;
 
 #[cfg(feature = "ssr")]
@@ -18,7 +21,10 @@ async fn chat(
     State(AppState { users, .. }): State<AppState>,
     TypedHeader(cookie): TypedHeader<Cookie>,
 ) -> Sse<impl Stream<Item = Result<Event, axum::Error>>> {
-    use leptos_sse_chat::event::{AppEvent, AppEventResponse, ChatEvent};
+    use leptos_sse_chat::{
+        app_event::ChatEvent,
+        event::{AppEvent, AppEventResponse},
+    };
     use std::time::Duration;
     use tokio_stream::StreamExt as _;
 
