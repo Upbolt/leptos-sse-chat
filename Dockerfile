@@ -1,28 +1,25 @@
-FROM rustlang/rust:nightly-alpine as builder
+FROM rust:1 AS chef 
+# We only pay the installation cost once, 
+# it will be cached from the second build onwards
+RUN cargo install cargo-chef 
+WORKDIR app
 
-RUN apk update && \
-    apk add --no-cache bash curl npm libc-dev binaryen
-    # protoc openssl-dev protobuf-dev gcc git g++ libc-dev make binaryen
-
-RUN cargo install cargo-leptos --locked
-
-# Add the WASM target
-RUN rustup target add wasm32-unknown-unknown
-
-WORKDIR /work
+FROM chef AS planner
 COPY . .
+RUN cargo chef prepare  --recipe-path recipe.json
 
-RUN cargo leptos build --release -vv
+FROM chef AS builder
+COPY --from=planner /app/recipe.json recipe.json
+# Build dependencies - this is the caching Docker layer!
+RUN cargo chef cook --release --recipe-path recipe.json
+# Build application
+COPY . .
+RUN cargo build --release --bin app
 
-FROM rustlang/rust:nightly-alpine as runner
-
-WORKDIR /app
-
-COPY --from=builder /work/target/release/leptos-sse-chat /app/
-COPY --from=builder /work/target/site /app/site
-COPY --from=builder /work/Cargo.toml /app/
-
-EXPOSE $PORT
-ENV LEPTOS_SITE_ROOT=./site
-
-CMD ["/app/leptos-sse-chat"]
+# We do not need the Rust toolchain to run the binary!
+FROM debian:bookworm-slim AS runtime
+WORKDIR app
+COPY --from=builder /app/target/release/leptos-sse-chat /usr/local/bin
+COPY --from=builder /app/target/site /usr/local/bin/site
+COPY --from=builder /app/Cargo.toml /use/local/bin
+ENTRYPOINT ["/usr/local/bin/leptos-sse-chat"]
