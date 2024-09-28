@@ -1,11 +1,11 @@
-use leptos::prelude::*;
+use leptos::{html::Form, prelude::*};
 use leptos_meta::{provide_meta_context, MetaTags, Title};
 use leptos_router::{
     components::{Route, Router, Routes},
     StaticSegment,
 };
 use leptos_use::{use_event_source_with_options, UseEventSourceOptions, UseEventSourceReturn};
-use web_sys::js_sys::RegExp;
+use web_sys::{js_sys::RegExp, SubmitEvent};
 use web_sys::Url;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
@@ -122,8 +122,20 @@ fn HomePage() -> impl IntoView {
 fn Chat() -> impl IntoView {
     let send_message = ServerAction::<SendMessage>::new();
 
+    let form_ref = NodeRef::<Form>::new();
+
     view! {
-        <ActionForm action=send_message>
+        <ActionForm 
+            action=send_message
+            node_ref=form_ref
+            on:submit=move|_: SubmitEvent| {
+                let Some(form) = form_ref.get() else {
+                    return;
+                };
+
+                form.reset();
+            }
+        >
             <input type="text" name="message" />
             <input type="submit" value="send" />
         </ActionForm>
