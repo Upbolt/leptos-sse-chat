@@ -1,2 +1,5 @@
+[phases.setup]
+cmds = ['rustup target add wasm32-unknown-unknown']
+
 [phases.install]
 cmds = ['cargo install cargo-leptos --locked']
